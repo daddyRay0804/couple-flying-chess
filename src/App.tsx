@@ -4,29 +4,17 @@ import { useGameState } from './hooks/useGameState';
 import { TaskEventData } from './types';
 import { HomeView } from './components/views/HomeView';
 import { GameView } from './components/views/GameView';
-import { ThemesView } from './components/views/ThemesView';
-import { ThemeSelectorModal } from './components/modals/ThemeSelectorModal';
 import { TaskCardModal } from './components/modals/TaskCardModal';
 import { WinModal } from './components/modals/WinModal';
 import { BottomNav } from './components/BottomNav';
-import { ThemeCreateModal } from './components/modals/ThemeCreateModal';
-import { ThemeEditorModal } from './components/modals/ThemeEditorModal';
-import { AiImportModal } from './components/modals/AiImportModal';
 import { TargetPlayerModal } from './components/modals/TargetPlayerModal';
 
 function App() {
   const {
     state,
     switchView,
-    setGameIntensity,
     setPlayerCount,
     setPlayerRole,
-    selectTheme,
-    createTheme,
-    updateThemeMeta,
-    addThemeTask,
-    removeThemeTask,
-    importThemeTasks,
     startGame,
     movePlayer,
     endTurn,
@@ -36,33 +24,14 @@ function App() {
     resetGame
   } = useGameState();
 
-  const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<number>(0);
   const [taskData, setTaskData] = useState<TaskEventData | null>(null);
   const [winnerId, setWinnerId] = useState<number | null>(null);
   const [pendingTargetTask, setPendingTargetTask] = useState<TaskEventData | null>(null);
-  const [isCreateThemeModalOpen, setIsCreateThemeModalOpen] = useState(false);
-  const [editingThemeId, setEditingThemeId] = useState<string | null>(null);
-  const [aiImportThemeId, setAiImportThemeId] = useState<string | null>(null);
-
-  const handleSelectTheme = (playerId: number) => {
-    setSelectedPlayerId(playerId);
-    setIsThemeModalOpen(true);
-  };
-
-  const handleThemeSelect = (themeId: string) => {
-    selectTheme(selectedPlayerId, themeId);
-  };
-
-  const selectedPlayer = state.players.find(p => p.id === selectedPlayerId) || state.players[0];
-  const selectableThemes = state.themes.filter(
-    t => t.audience === 'common' || t.audience === selectedPlayer.role
-  );
 
   const handleStartGame = () => {
     const success = startGame();
     if (!success) {
-      alert('请先为双方选择任务包');
+      alert('初始化游戏失败，请重试');
     }
   };
 
@@ -144,7 +113,7 @@ function App() {
 
         <main className="flex-1 relative overflow-hidden">
           <div
-            className={`absolute inset-0 flex flex-col px-6 pt-10 pb-10 transition-all duration-500 ease-in-out ${
+            className={`absolute inset-0 flex flex-col px-6 pt-10 pb-10 overflow-y-auto no-scrollbar transition-all duration-500 ease-in-out ${
               state.view === 'home'
                 ? 'translate-x-0 opacity-100'
                 : 'opacity-0 pointer-events-none -translate-x-full'
@@ -152,41 +121,16 @@ function App() {
           >
             <HomeView
               players={state.players}
-              themes={state.themes}
-              gameIntensity={state.gameIntensity}
-              onSelectTheme={handleSelectTheme}
               onStartGame={handleStartGame}
               onSetPlayerCount={setPlayerCount}
               onSetPlayerRole={setPlayerRole}
-              onSetGameIntensity={setGameIntensity}
             />
           </div>
 
-          <div
-            className={`absolute inset-0 px-6 pt-4 transition-all duration-500 ease-in-out ${
-              state.view === 'themes'
-                ? 'translate-x-0 opacity-100'
-                : 'opacity-0 pointer-events-none translate-x-full'
-            }`}
-          >
-            <ThemesView
-              themes={state.themes}
-              onCreateTheme={() => setIsCreateThemeModalOpen(true)}
-              onEditTheme={themeId => setEditingThemeId(themeId)}
-            />
-          </div>
         </main>
 
         <BottomNav activeView={state.view} onNavigate={handleNavigate} />
       </div>
-
-      <ThemeSelectorModal
-        isOpen={isThemeModalOpen}
-        themes={selectableThemes}
-        selectedThemeId={selectedPlayer?.themeId || null}
-        onSelect={handleThemeSelect}
-        onClose={() => setIsThemeModalOpen(false)}
-      />
 
       <TaskCardModal
         isOpen={!!taskData}
@@ -210,39 +154,6 @@ function App() {
         initiatorPlayerId={pendingTargetTask?.initiatorPlayerId ?? -1}
         onSelect={handleTargetSelect}
         onClose={() => setPendingTargetTask(null)}
-      />
-
-      <ThemeCreateModal
-        isOpen={isCreateThemeModalOpen}
-        onClose={() => setIsCreateThemeModalOpen(false)}
-        onCreate={input => {
-          const id = createTheme(input);
-          setIsCreateThemeModalOpen(false);
-          if (id) setEditingThemeId(id);
-        }}
-      />
-
-      <ThemeEditorModal
-        isOpen={!!editingThemeId}
-        theme={editingThemeId ? state.themes.find(t => t.id === editingThemeId) || null : null}
-        onClose={() => {
-          setEditingThemeId(null);
-          setAiImportThemeId(null);
-        }}
-        onSaveMeta={(themeId, patch) => updateThemeMeta(themeId, patch)}
-        onAddTask={(themeId, taskText) => addThemeTask(themeId, taskText)}
-        onRemoveTask={(themeId, index) => removeThemeTask(themeId, index)}
-        onOpenAiImport={themeId => setAiImportThemeId(themeId)}
-      />
-
-      <AiImportModal
-        isOpen={!!aiImportThemeId}
-        themeName={aiImportThemeId ? state.themes.find(t => t.id === aiImportThemeId)?.name || '' : ''}
-        onClose={() => setAiImportThemeId(null)}
-        onImport={(tasks, mode) => {
-          if (!aiImportThemeId) return;
-          importThemeTasks(aiImportThemeId, tasks, mode);
-        }}
       />
 
       {state.view === 'game' && (

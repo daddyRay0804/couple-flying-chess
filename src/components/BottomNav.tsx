@@ -1,4 +1,4 @@
-import { GamepadIcon, Layers } from 'lucide-react';
+import { GamepadIcon } from 'lucide-react';
 
 interface BottomNavProps {
   activeView: 'home' | 'game' | 'themes';
@@ -7,9 +7,9 @@ interface BottomNavProps {
 
 export function BottomNav({ activeView, onNavigate }: BottomNavProps) {
   return (
-    <nav className="h-[84px] ios-glass border-t border-white/5 flex items-start justify-around pt-3 shrink-0 z-50">
+    <nav className="h-[84px] ios-glass border-t border-rose-100 flex items-start justify-center pt-3 shrink-0 z-50 rounded-t-[28px]">
       <button
-        className={`group flex flex-col items-center gap-1 w-16 transition-opacity ${
+        className={`group flex flex-col items-center gap-1 w-20 transition-opacity ${
           activeView === 'home' || activeView === 'game' ? 'opacity-100' : 'opacity-50'
         }`}
         onClick={() => onNavigate('home')}
@@ -17,44 +17,19 @@ export function BottomNav({ activeView, onNavigate }: BottomNavProps) {
         <GamepadIcon
           className={`transition-colors ${
             activeView === 'home' || activeView === 'game'
-              ? 'text-white'
-              : 'text-gray-400 group-hover:text-white'
+              ? 'text-rose-500'
+              : 'text-rose-300 group-hover:text-rose-500'
           }`}
           size={26}
         />
         <span
           className={`text-[10px] font-medium transition-colors ${
             activeView === 'home' || activeView === 'game'
-              ? 'text-white'
-              : 'text-gray-400 group-hover:text-white'
+              ? 'text-rose-500'
+              : 'text-rose-300 group-hover:text-rose-500'
           }`}
         >
           游戏
-        </span>
-      </button>
-
-      <button
-        className={`group flex flex-col items-center gap-1 w-16 transition-opacity ${
-          activeView === 'themes' ? 'opacity-100' : 'opacity-50'
-        }`}
-        onClick={() => onNavigate('themes')}
-      >
-        <Layers
-          className={`transition-colors ${
-            activeView === 'themes'
-              ? 'text-white'
-              : 'text-gray-400 group-hover:text-white'
-          }`}
-          size={26}
-        />
-        <span
-          className={`text-[10px] font-medium transition-colors ${
-            activeView === 'themes'
-              ? 'text-white'
-              : 'text-gray-400 group-hover:text-white'
-          }`}
-        >
-          题库
         </span>
       </button>
     </nav>

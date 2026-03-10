@@ -41,6 +41,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
+const SURPRISE_THEME_ID = 'surprise';
+const TRAP_THEME_ID = 'trap';
+
 function isThemeAllowedForRole(theme: Theme, role: Player['role']) {
   return theme.audience === 'common' || theme.audience === role;
 }
@@ -249,10 +252,6 @@ export function useGameState() {
     setState(prev => ({ ...prev, view }));
   }, []);
 
-  const setGameIntensity = useCallback((gameIntensity: GameIntensity) => {
-    setState(prev => ({ ...prev, gameIntensity }));
-  }, []);
-
   const setPlayerCount = useCallback((count: number) => {
     setState(prev => {
       const safeCount = Math.min(4, Math.max(2, count));
@@ -292,130 +291,20 @@ export function useGameState() {
     });
   }, []);
 
-  const selectTheme = useCallback((playerId: number, themeId: string) => {
-    setState(prev => ({
-      ...prev,
-      players: prev.players.map(p => (p.id === playerId ? { ...p, themeId } : p))
-    }));
-  }, []);
-
-  const createTheme = useCallback((input: { name: string; desc?: string; audience: Theme['audience'] }) => {
-    const name = input.name.trim();
-    const desc = (input.desc || '').trim();
-    if (!name) return null;
-
-    let createdId: string | null = null;
-    setState(prev => {
-      const existingIds = new Set(prev.themes.map(t => t.id));
-      const id = createThemeId(existingIds);
-      createdId = id;
-
-      return {
-        ...prev,
-        themes: [
-          ...prev.themes,
-          {
-            id,
-            name,
-            desc,
-            audience: input.audience,
-            tasks: []
-          }
-        ]
-      };
-    });
-
-    return createdId;
-  }, []);
-
-  const updateThemeMeta = useCallback((themeId: string, patch: Partial<Pick<Theme, 'name' | 'desc' | 'audience'>>) => {
-    setState(prev => ({
-      ...prev,
-      themes: prev.themes.map(t => {
-        if (t.id !== themeId) return t;
-        const nextName = typeof patch.name === 'string' ? patch.name.trim() : t.name;
-        const nextDesc = typeof patch.desc === 'string' ? patch.desc.trim() : t.desc;
-        const nextAudience = patch.audience || t.audience;
-
-        return {
-          ...t,
-          name: nextName || t.name,
-          desc: nextDesc,
-          audience: nextAudience
-        };
-      }),
-      players: prev.players.map(player => {
-        if (!player.themeId || player.themeId !== themeId) return player;
-        const nextAudience = patch.audience || prev.themes.find(t => t.id === themeId)?.audience || 'common';
-        return nextAudience === 'common' || nextAudience === player.role
-          ? player
-          : { ...player, themeId: null };
-      })
-    }));
-  }, []);
-
-  const addThemeTask = useCallback((themeId: string, taskText: string) => {
-    const trimmed = taskText.trim();
-    if (!trimmed) return;
-
-    setState(prev => ({
-      ...prev,
-      themes: prev.themes.map(t => {
-        if (t.id !== themeId) return t;
-        if (t.tasks.includes(trimmed)) return t;
-        return { ...t, tasks: [...t.tasks, trimmed] };
-      })
-    }));
-  }, []);
-
-  const removeThemeTask = useCallback((themeId: string, index: number) => {
-    setState(prev => ({
-      ...prev,
-      themes: prev.themes.map(t => {
-        if (t.id !== themeId) return t;
-        if (index < 0 || index >= t.tasks.length) return t;
-        return { ...t, tasks: t.tasks.filter((_, i) => i !== index) };
-      })
-    }));
-  }, []);
-
-  const importThemeTasks = useCallback((themeId: string, tasks: string[], mode: 'append' | 'replace' = 'append') => {
-    const cleaned = tasks
-      .map(t => (typeof t === 'string' ? t.trim() : ''))
-      .filter(t => t.length > 0);
-
-    if (cleaned.length === 0) return;
-
-    setState(prev => ({
-      ...prev,
-      themes: prev.themes.map(t => {
-        if (t.id !== themeId) return t;
-        const base = mode === 'replace' ? [] : t.tasks;
-        const seen = new Set<string>();
-        const merged: string[] = [];
-
-        for (const item of [...base, ...cleaned]) {
-          if (seen.has(item)) continue;
-          seen.add(item);
-          merged.push(item);
-        }
-
-        return { ...t, tasks: merged };
-      })
-    }));
-  }, []);
-
   const startGame = useCallback(() => {
-    for (const player of state.players) {
-      if (!player.themeId) return false;
-      const theme = state.themes.find(t => t.id === player.themeId);
-      if (!theme) return false;
-      if (!isThemeAllowedForRole(theme, player.role)) return false;
-      if (theme.tasks.length === 0) return false;
-    }
-    setState(prev => ({ ...prev, view: 'game', turn: Math.floor(Math.random() * prev.players.length) }));
+    const surpriseTheme = state.themes.find(t => t.id === SURPRISE_THEME_ID);
+    const trapTheme = state.themes.find(t => t.id === TRAP_THEME_ID);
+    if (!surpriseTheme || !trapTheme) return false;
+    if (surpriseTheme.tasks.length === 0 || trapTheme.tasks.length === 0) return false;
+
+    setState(prev => ({
+      ...prev,
+      view: 'game',
+      turn: Math.floor(Math.random() * prev.players.length),
+      players: prev.players.map(p => ({ ...p, themeId: SURPRISE_THEME_ID, step: 0 }))
+    }));
     return true;
-  }, [state.players, state.themes]);
+  }, [state.themes]);
 
   const movePlayer = useCallback((steps: number) => {
     setState(prev => {
@@ -451,7 +340,7 @@ export function useGameState() {
     }
 
     if (collisionTarget) {
-      const theme = state.themes.find(t => t.id === activePlayer.themeId);
+      const theme = state.themes.find(t => t.id === SURPRISE_THEME_ID);
       const task = theme?.tasks[Math.floor(Math.random() * theme.tasks.length)] || '';
 
       return buildTaskEvent({
@@ -463,7 +352,7 @@ export function useGameState() {
         icon: 'handshake',
         color: 'text-yellow-400',
         task,
-        taskSourceId: activePlayer.themeId || '',
+        taskSourceId: SURPRISE_THEME_ID,
         gameIntensity: state.gameIntensity,
         targetRule: 'collision-player',
         modeOverride: 'duel'
@@ -473,19 +362,19 @@ export function useGameState() {
     const tileType = state.boardMap[landingStep];
 
     if (tileType === 'lucky') {
-      const theme = state.themes.find(t => t.id === activePlayer.themeId);
+      const theme = state.themes.find(t => t.id === SURPRISE_THEME_ID);
       const task = theme?.tasks[Math.floor(Math.random() * theme.tasks.length)] || '';
 
       return buildTaskEvent({
         type: 'lucky',
         initiator: activePlayer,
         executor: activePlayer,
-        title: '幸运时刻',
-        subtitle: `${activePlayer.name} 获得主动权，可发起一轮成人互动任务`,
+        title: '惊喜时刻',
+        subtitle: `${activePlayer.name} 获得主动权，可以指定对象发起互动`,
         icon: 'favorite',
         color: 'text-[#FF375F]',
         task,
-        taskSourceId: activePlayer.themeId || '',
+        taskSourceId: SURPRISE_THEME_ID,
         gameIntensity: state.gameIntensity,
         targetRule: otherPlayers.length > 0 ? 'chosen-player' : 'self'
       });
@@ -493,7 +382,7 @@ export function useGameState() {
 
     if (tileType === 'trap') {
       const sourcePlayer = otherPlayers[0] || activePlayer;
-      const theme = state.themes.find(t => t.id === sourcePlayer.themeId);
+      const theme = state.themes.find(t => t.id === TRAP_THEME_ID);
       const task = theme?.tasks[Math.floor(Math.random() * theme.tasks.length)] || '';
 
       return buildTaskEvent({
@@ -505,7 +394,7 @@ export function useGameState() {
         icon: 'lock',
         color: 'text-[#BF5AF2]',
         task,
-        taskSourceId: sourcePlayer.themeId || '',
+        taskSourceId: TRAP_THEME_ID,
         gameIntensity: state.gameIntensity,
         targetRule: 'self'
       });
@@ -557,15 +446,8 @@ export function useGameState() {
   return {
     state,
     switchView,
-    setGameIntensity,
     setPlayerCount,
     setPlayerRole,
-    selectTheme,
-    createTheme,
-    updateThemeMeta,
-    addThemeTask,
-    removeThemeTask,
-    importThemeTasks,
     startGame,
     movePlayer,
     endTurn,

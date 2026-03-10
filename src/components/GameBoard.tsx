@@ -1,5 +1,5 @@
 import { TileType, PathCoord, Player } from '../types';
-import { Sparkles, Bomb, Trophy, User, UserRound } from 'lucide-react';
+import { Sparkles, Bomb, Trophy } from 'lucide-react';
 
 interface GameBoardProps {
   boardMap: TileType[];
@@ -68,7 +68,7 @@ export function GameBoard({ boardMap, pathCoords, players, currentTurn }: GameBo
           const indexOnTile = playersOnSameTile.findIndex(p => p.id === player.id);
           const translate = playersOnSameTile.length > 1 ? overlapTransforms[indexOnTile] || 'translate(0, 0)' : 'translate(0, 0)';
           const isActive = player.id === currentTurn;
-          const isMale = player.role === 'male';
+          const symbol = player.role === 'male' ? '♂' : '♀';
 
           return (
             <div
@@ -80,7 +80,7 @@ export function GameBoard({ boardMap, pathCoords, players, currentTurn }: GameBo
               }}
             >
               <div
-                className={`relative flex items-center justify-center w-8 h-8 rounded-full shadow-lg transition-transform duration-300 ${isActive ? 'avatar-pulse scale-110' : ''}`}
+                className={`relative flex items-center justify-center w-8 h-8 rounded-full shadow-lg transition-transform duration-300 text-white text-sm font-bold ${isActive ? 'avatar-pulse scale-110' : ''}`}
                 style={{
                   backgroundColor: player.color,
                   transform: translate,
@@ -88,11 +88,7 @@ export function GameBoard({ boardMap, pathCoords, players, currentTurn }: GameBo
                 }}
                 title={player.name}
               >
-                {isMale ? (
-                  <User className="text-white w-4 h-4" />
-                ) : (
-                  <UserRound className="text-white w-4 h-4" />
-                )}
+                {symbol}
                 <span className="absolute -bottom-5 text-[10px] font-semibold text-rose-700 whitespace-nowrap">
                   {player.name}
                 </span>
