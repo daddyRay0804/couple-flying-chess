@@ -91,54 +91,54 @@ export function GameView({
   }, [diceResult, players, currentTurn, onMove, onCheckTile, onWin, onTaskTrigger, onEndTurn]);
 
   const activePlayer = players[currentTurn];
-  const turnNumber = Math.floor(Math.max(...players.map(p => p.step)) / 4) + 1;
+  const leadingStep = Math.max(...players.map(p => p.step));
+  const turnNumber = Math.floor(leadingStep / 4) + 1;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+    <div className="fixed inset-0 z-50 bg-[#fff7f8] flex flex-col">
       <div className="absolute inset-0 z-0">
-        <div className="w-full h-full bg-gradient-to-br from-gray-900 via-black to-gray-900 opacity-60" />
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+        <div className="w-full h-full bg-[radial-gradient(circle_at_top_left,_rgba(255,214,230,0.95),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(220,232,255,0.9),_transparent_30%),linear-gradient(180deg,_#fffafb_0%,_#fff4f7_58%,_#fffaf5_100%)]" />
+        <div className="absolute inset-0 bg-white/20 backdrop-blur-[3px]" />
       </div>
 
       <div className="relative z-10 flex flex-col h-full max-w-[430px] mx-auto w-full">
         <header className="pt-12 pb-2 px-4 flex items-center gap-4 shrink-0">
           <button
             onClick={onBack}
-            className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center ios-btn border border-white/5"
+            className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center ios-btn border border-rose-100 shadow-sm"
           >
-            <ArrowLeft className="text-white" size={20} />
+            <ArrowLeft className="text-rose-500" size={20} />
           </button>
           <div className="flex-1 flex justify-center">
-            <div className="p-1.5 bg-[#1C1C1E] rounded-full flex items-center gap-2 border border-white/10">
-              <div
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300 ${
-                  currentTurn === 0
-                    ? 'bg-[#0A84FF] text-white shadow-lg shadow-blue-900/50'
-                    : 'text-[#0A84FF] opacity-60'
-                }`}
-              >
-                <User size={14} />
-                <span className="text-xs font-bold">男方</span>
-              </div>
-              <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2">
-                Turn {turnNumber}
-              </div>
-              <div
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300 ${
-                  currentTurn === 1
-                    ? 'bg-[#FF375F] text-white shadow-lg shadow-pink-900/50'
-                    : 'text-[#FF375F] opacity-60'
-                }`}
-              >
-                <span className="text-xs font-bold">女方</span>
-                <UserRound size={14} />
+            <div className="px-4 py-2 bg-white/80 rounded-full border border-rose-100 shadow-sm text-center">
+              <div className="text-[10px] font-bold text-rose-300 uppercase tracking-widest">Turn {turnNumber}</div>
+              <div className="mt-1 text-sm font-semibold text-rose-900 flex items-center justify-center gap-2">
+                {activePlayer.role === 'male' ? <User size={14} /> : <UserRound size={14} />}
+                <span>{activePlayer.name} 回合</span>
               </div>
             </div>
           </div>
           <div className="w-10" />
         </header>
 
-        <div className="flex-1 flex items-center justify-center px-4">
+        <div className="px-4 mt-2 mb-2 flex flex-wrap justify-center gap-2">
+          {players.map(player => {
+            const active = player.id === currentTurn;
+            return (
+              <div
+                key={player.id}
+                className={`px-3 py-1.5 rounded-full border text-xs font-semibold transition-all ${
+                  active ? 'text-white border-transparent shadow-sm' : 'bg-white/75 text-rose-400 border-rose-100'
+                }`}
+                style={active ? { backgroundColor: player.color } : {}}
+              >
+                {player.name}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex-1 flex items-center justify-center px-4 pb-2">
           <GameBoard
             boardMap={boardMap}
             pathCoords={pathCoords}
@@ -147,20 +147,12 @@ export function GameView({
           />
         </div>
 
-        <div className="h-[260px] w-full ios-glass rounded-t-[32px] flex flex-col items-center pt-8 pb-8 px-6 border-t border-white/10 shadow-2xl shrink-0">
-          <div
-            className={`text-sm font-medium mb-6 text-center animate-pulse ${
-              currentTurn === 0 ? 'text-[#0A84FF]' : 'text-[#FF375F]'
-            }`}
-          >
-            {activePlayer.name}回合：点击骰子
+        <div className="h-[260px] w-full ios-glass rounded-t-[32px] flex flex-col items-center pt-8 pb-8 px-6 border-t border-rose-100 shadow-[0_-16px_36px_rgba(236,111,152,0.12)] shrink-0">
+          <div className="text-sm font-medium mb-6 text-center" style={{ color: activePlayer.color }}>
+            {activePlayer.name}：点击骰子开始本回合
           </div>
           <div onClick={handleRoll}>
-            <Dice
-              isRolling={isRolling}
-              result={diceResult}
-              onRollComplete={handleRollComplete}
-            />
+            <Dice isRolling={isRolling} result={diceResult} onRollComplete={handleRollComplete} />
           </div>
         </div>
       </div>

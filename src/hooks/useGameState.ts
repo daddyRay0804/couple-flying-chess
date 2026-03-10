@@ -1,15 +1,41 @@
 import { useState, useEffect, useCallback } from 'react';
-import { GameState, Player, TaskEventData, Theme } from '../types';
+import { GameIntensity, GameState, Player, TargetRule, TaskEventData, TaskIntensity, TaskMode, Theme } from '../types';
 import { loadFromStorage, saveToStorage } from '../utils/localStorage';
 import { generateSpiralPath, generateBoardMap, calculateNewPosition } from '../utils/gameLogic';
 import { DEFAULT_THEMES } from '../data/defaultThemes';
 
 const STORAGE_KEY = 'couples-ludo-game-state';
+const PLAYER_COLORS = ['#6D8EF7', '#EC6F98', '#56C1A7', '#F3A65A'];
 
-const initialPlayers: Player[] = [
-  { id: 0, name: '男方', color: '#0A84FF', role: 'male', step: 0, themeId: null },
-  { id: 1, name: '女方', color: '#FF375F', role: 'female', step: 0, themeId: null }
-];
+function createDefaultPlayers(count = 2): Player[] {
+  const safeCount = Math.min(4, Math.max(2, count));
+  const rolePattern: Player['role'][] = ['male', 'female', 'male', 'female'];
+  const roleCounters: Record<Player['role'], number> = { male: 0, female: 0 };
+
+  return Array.from({ length: safeCount }, (_, idx) => {
+    const role = rolePattern[idx];
+    roleCounters[role] += 1;
+    return {
+      id: idx,
+      name: role === 'male' ? `男${roleCounters[role]}` : `女${roleCounters[role]}`,
+      color: PLAYER_COLORS[idx],
+      role,
+      step: 0,
+      themeId: null
+    };
+  });
+}
+
+function renamePlayersByRole(players: Player[]): Player[] {
+  const counters: Record<Player['role'], number> = { male: 0, female: 0 };
+  return players.map(player => {
+    counters[player.role] += 1;
+    return {
+      ...player,
+      name: player.role === 'male' ? `男${counters[player.role]}` : `女${counters[player.role]}`
+    };
+  });
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -21,11 +47,11 @@ function isThemeAllowedForRole(theme: Theme, role: Player['role']) {
 
 function normalizePlayers(input: unknown): Player[] {
   const incoming = Array.isArray(input) ? input : [];
+  const count = Math.min(4, Math.max(2, incoming.length || 2));
+  const basePlayers = createDefaultPlayers(count);
 
-  return initialPlayers.map(base => {
-    const found = incoming.find(
-      p => isRecord(p) && typeof p.id === 'number' && p.id === base.id
-    );
+  const players = basePlayers.map(base => {
+    const found = incoming.find(p => isRecord(p) && typeof p.id === 'number' && p.id === base.id);
     const record = isRecord(found) ? found : {};
     const roleValue = record.role;
     const themeIdValue = record.themeId;
@@ -39,6 +65,8 @@ function normalizePlayers(input: unknown): Player[] {
       themeId: typeof themeIdValue === 'string' || themeIdValue === null ? themeIdValue : null
     };
   });
+
+  return renamePlayersByRole(players);
 }
 
 function normalizeThemes(input: unknown): Theme[] {
@@ -88,14 +116,17 @@ function normalizeGameState(saved: unknown): GameState | null {
     return p;
   });
 
+  const incomingTurn = typeof s.turn === 'number' ? s.turn : 0;
+
   return {
     view: s.view === 'home' || s.view === 'game' || s.view === 'themes' ? s.view : 'home',
-    turn: s.turn === 0 || s.turn === 1 ? s.turn : 0,
+    turn: incomingTurn >= 0 && incomingTurn < players.length ? incomingTurn : 0,
     players,
     themes,
     boardMap: Array.isArray(s.boardMap) ? s.boardMap : generateBoardMap(),
     pathCoords: Array.isArray(s.pathCoords) ? s.pathCoords : generateSpiralPath(),
-    isRolling: !!s.isRolling
+    isRolling: !!s.isRolling,
+    gameIntensity: s.gameIntensity === 'warm' || s.gameIntensity === 'hot' || s.gameIntensity === 'extreme' ? s.gameIntensity : 'hot'
   };
 }
 
@@ -112,6 +143,83 @@ function createThemeId(existingIds: Set<string>) {
   return id;
 }
 
+function getNextTurnIndex(players: Player[], currentTurn: number) {
+  return (currentTurn + 1) % players.length;
+}
+
+function inferTaskMeta(taskText: string, gameIntensity: GameIntensity): {
+  mode: TaskMode;
+  intensity: TaskIntensity;
+  targetRule: TargetRule;
+  contactLevel: 1 | 2 | 3;
+} {
+  const text = taskText.toLowerCase();
+
+  let mode: TaskMode = 'self';
+  let targetRule: TargetRule = 'self';
+  let contactLevel: 1 | 2 | 3 = gameIntensity === 'warm' ? 1 : gameIntensity === 'hot' ? 2 : 3;
+
+  if (/(互相|一起|双方|两人)/.test(taskText)) {
+    mode = 'duel';
+    targetRule = 'chosen-player';
+    contactLevel = Math.max(2, contactLevel) as 1 | 2 | 3;
+  }
+  if (/(全员|所有人|大家)/.test(taskText)) {
+    mode = 'all';
+    targetRule = 'all-players';
+  }
+  if (/(指定|选择|挑一个|点一名)/.test(taskText)) {
+    mode = 'target';
+    targetRule = 'chosen-player';
+  }
+
+  let intensity: TaskIntensity = gameIntensity;
+  if (/(拥抱|贴贴|牵手|亲吻|抚摸|接吻)/.test(taskText)) {
+    intensity = gameIntensity === 'extreme' ? 'extreme' : 'hot';
+    contactLevel = Math.max(contactLevel, 2) as 1 | 2 | 3;
+  }
+  if (/(脱|裸体|口交|私密|高潮|做爱|抽插)/.test(taskText)) {
+    intensity = 'extreme';
+    contactLevel = 3;
+  }
+
+  return { mode, intensity, targetRule, contactLevel };
+}
+
+function buildTaskEvent(params: {
+  type: 'collision' | 'lucky' | 'trap';
+  title: string;
+  subtitle: string;
+  icon: string;
+  color: string;
+  task: string;
+  taskSourceId: string;
+  initiator: Player;
+  executor: Player;
+  gameIntensity: GameIntensity;
+  targetRule?: TargetRule;
+  modeOverride?: TaskMode;
+}) : TaskEventData {
+  const inferred = inferTaskMeta(params.task, params.gameIntensity);
+  return {
+    type: params.type,
+    initiatorPlayerId: params.initiator.id,
+    initiatorPlayerName: params.initiator.name,
+    executorPlayerId: params.executor.id,
+    executorPlayerName: params.executor.name,
+    title: params.title,
+    subtitle: params.subtitle,
+    icon: params.icon,
+    color: params.color,
+    task: params.task,
+    taskSourceId: params.taskSourceId,
+    mode: params.modeOverride || inferred.mode,
+    intensity: inferred.intensity,
+    targetRule: params.targetRule || inferred.targetRule,
+    contactLevel: inferred.contactLevel
+  };
+}
+
 export function useGameState() {
   const [state, setState] = useState<GameState>(() => {
     const saved = loadFromStorage<GameState | null>(STORAGE_KEY, null);
@@ -124,11 +232,12 @@ export function useGameState() {
     return {
       view: 'home',
       turn: 0,
-      players: initialPlayers,
+      players: createDefaultPlayers(2),
       themes: DEFAULT_THEMES,
       boardMap: generateBoardMap(),
       pathCoords: generateSpiralPath(),
-      isRolling: false
+      isRolling: false,
+      gameIntensity: 'hot'
     };
   });
 
@@ -140,12 +249,53 @@ export function useGameState() {
     setState(prev => ({ ...prev, view }));
   }, []);
 
+  const setGameIntensity = useCallback((gameIntensity: GameIntensity) => {
+    setState(prev => ({ ...prev, gameIntensity }));
+  }, []);
+
+  const setPlayerCount = useCallback((count: number) => {
+    setState(prev => {
+      const safeCount = Math.min(4, Math.max(2, count));
+      const basePlayers = createDefaultPlayers(safeCount);
+      const merged = basePlayers.map(base => {
+        const existing = prev.players.find(p => p.id === base.id);
+        return existing
+          ? { ...base, role: existing.role, step: 0, themeId: existing.themeId }
+          : base;
+      });
+
+      return {
+        ...prev,
+        turn: 0,
+        players: renamePlayersByRole(merged),
+        isRolling: false
+      };
+    });
+  }, []);
+
+  const setPlayerRole = useCallback((playerId: number, role: Player['role']) => {
+    setState(prev => {
+      const nextPlayers = renamePlayersByRole(
+        prev.players.map(player => {
+          if (player.id !== playerId) return player;
+          const nextTheme = player.themeId
+            ? prev.themes.find(t => t.id === player.themeId && isThemeAllowedForRole(t, role))?.id || null
+            : null;
+          return { ...player, role, themeId: nextTheme };
+        })
+      );
+
+      return {
+        ...prev,
+        players: nextPlayers
+      };
+    });
+  }, []);
+
   const selectTheme = useCallback((playerId: number, themeId: string) => {
     setState(prev => ({
       ...prev,
-      players: prev.players.map(p =>
-        p.id === playerId ? { ...p, themeId } : p
-      )
+      players: prev.players.map(p => (p.id === playerId ? { ...p, themeId } : p))
     }));
   }, []);
 
@@ -193,6 +343,13 @@ export function useGameState() {
           desc: nextDesc,
           audience: nextAudience
         };
+      }),
+      players: prev.players.map(player => {
+        if (!player.themeId || player.themeId !== themeId) return player;
+        const nextAudience = patch.audience || prev.themes.find(t => t.id === themeId)?.audience || 'common';
+        return nextAudience === 'common' || nextAudience === player.role
+          ? player
+          : { ...player, themeId: null };
       })
     }));
   }, []);
@@ -256,7 +413,7 @@ export function useGameState() {
       if (!isThemeAllowedForRole(theme, player.role)) return false;
       if (theme.tasks.length === 0) return false;
     }
-    setState(prev => ({ ...prev, view: 'game', turn: Math.random() < 0.5 ? 0 : 1 }));
+    setState(prev => ({ ...prev, view: 'game', turn: Math.floor(Math.random() * prev.players.length) }));
     return true;
   }, [state.players, state.themes]);
 
@@ -267,9 +424,7 @@ export function useGameState() {
 
       return {
         ...prev,
-        players: prev.players.map(p =>
-          p.id === activePlayer.id ? { ...p, step: newStep } : p
-        )
+        players: prev.players.map(p => (p.id === activePlayer.id ? { ...p, step: newStep } : p))
       };
     });
   }, []);
@@ -277,7 +432,7 @@ export function useGameState() {
   const endTurn = useCallback(() => {
     setState(prev => ({
       ...prev,
-      turn: prev.turn === 0 ? 1 : 0,
+      turn: getNextTurnIndex(prev.players, prev.turn),
       isRolling: false
     }));
   }, []);
@@ -288,27 +443,31 @@ export function useGameState() {
 
   const checkTile = useCallback((landingStep: number): TaskEventData | 'win' | null => {
     const activePlayer = state.players[state.turn];
-    const opponent = state.players[state.turn === 0 ? 1 : 0];
+    const otherPlayers = state.players.filter(p => p.id !== activePlayer.id);
+    const collisionTarget = otherPlayers.find(p => landingStep !== 0 && p.step === landingStep);
 
     if (landingStep === 48) {
       return 'win';
     }
 
-    if (landingStep !== 0 && landingStep === opponent.step) {
+    if (collisionTarget) {
       const theme = state.themes.find(t => t.id === activePlayer.themeId);
       const task = theme?.tasks[Math.floor(Math.random() * theme.tasks.length)] || '';
 
-      return {
+      return buildTaskEvent({
         type: 'collision',
-        initiatorPlayerId: activePlayer.id,
-        executorPlayerId: opponent.id,
-        title: '亲密追尾',
-        subtitle: `任务来自「${theme?.name || ''}」`,
+        initiator: activePlayer,
+        executor: collisionTarget,
+        title: '相遇事件',
+        subtitle: `${activePlayer.name} 撞上了 ${collisionTarget.name}，触发双人互动`,
         icon: 'handshake',
         color: 'text-yellow-400',
         task,
-        taskSourceId: activePlayer.themeId || ''
-      };
+        taskSourceId: activePlayer.themeId || '',
+        gameIntensity: state.gameIntensity,
+        targetRule: 'collision-player',
+        modeOverride: 'duel'
+      });
     }
 
     const tileType = state.boardMap[landingStep];
@@ -317,47 +476,53 @@ export function useGameState() {
       const theme = state.themes.find(t => t.id === activePlayer.themeId);
       const task = theme?.tasks[Math.floor(Math.random() * theme.tasks.length)] || '';
 
-      return {
+      return buildTaskEvent({
         type: 'lucky',
-        initiatorPlayerId: activePlayer.id,
-        executorPlayerId: opponent.id,
+        initiator: activePlayer,
+        executor: activePlayer,
         title: '幸运时刻',
-        subtitle: `任务来自「${theme?.name || ''}」`,
+        subtitle: `${activePlayer.name} 获得主动权，可发起一轮成人互动任务`,
         icon: 'favorite',
         color: 'text-[#FF375F]',
         task,
-        taskSourceId: activePlayer.themeId || ''
-      };
+        taskSourceId: activePlayer.themeId || '',
+        gameIntensity: state.gameIntensity,
+        targetRule: otherPlayers.length > 0 ? 'chosen-player' : 'self'
+      });
     }
 
     if (tileType === 'trap') {
-      const theme = state.themes.find(t => t.id === opponent.themeId);
+      const sourcePlayer = otherPlayers[0] || activePlayer;
+      const theme = state.themes.find(t => t.id === sourcePlayer.themeId);
       const task = theme?.tasks[Math.floor(Math.random() * theme.tasks.length)] || '';
 
-      return {
+      return buildTaskEvent({
         type: 'trap',
-        initiatorPlayerId: activePlayer.id,
-        executorPlayerId: activePlayer.id,
+        initiator: sourcePlayer,
+        executor: activePlayer,
         title: '意外陷阱',
-        subtitle: `任务来自「${theme?.name || ''}」`,
+        subtitle: `${activePlayer.name} 进入被动回合，需要接受更刺激的挑战`,
         icon: 'lock',
         color: 'text-[#BF5AF2]',
         task,
-        taskSourceId: opponent.themeId || ''
-      };
+        taskSourceId: sourcePlayer.themeId || '',
+        gameIntensity: state.gameIntensity,
+        targetRule: 'self'
+      });
     }
 
     return null;
-  }, [state.players, state.turn, state.themes, state.boardMap]);
+  }, [state.players, state.turn, state.themes, state.boardMap, state.gameIntensity]);
 
-  const resolveTask = useCallback((task: TaskEventData, outcome: 'accept' | 'reject') => {
+  const resolveTask = useCallback((task: TaskEventData, outcome: 'accept' | 'reject', chosenTargetId?: number) => {
     setState(prev => {
       let nextPlayers = prev.players;
+      const effectiveExecutorId = chosenTargetId ?? task.executorPlayerId;
 
       if (outcome === 'reject') {
         const backSteps = Math.floor(Math.random() * 3) + 1;
         nextPlayers = prev.players.map(p => {
-          if (p.id !== task.executorPlayerId) return p;
+          if (p.id !== effectiveExecutorId) return p;
 
           if (task.type === 'collision') {
             return { ...p, step: 0 };
@@ -370,7 +535,7 @@ export function useGameState() {
       return {
         ...prev,
         players: nextPlayers,
-        turn: prev.turn === 0 ? 1 : 0,
+        turn: getNextTurnIndex(prev.players, prev.turn),
         isRolling: false
       };
     });
@@ -381,16 +546,20 @@ export function useGameState() {
       ...prev,
       view: 'home',
       turn: 0,
-      players: initialPlayers.map(p => ({ ...p, themeId: null, step: 0 })),
+      players: prev.players.map(p => ({ ...p, step: 0, themeId: null })),
       boardMap: generateBoardMap(),
       pathCoords: generateSpiralPath(),
-      isRolling: false
+      isRolling: false,
+      gameIntensity: prev.gameIntensity
     }));
   }, []);
 
   return {
     state,
     switchView,
+    setGameIntensity,
+    setPlayerCount,
+    setPlayerRole,
     selectTheme,
     createTheme,
     updateThemeMeta,

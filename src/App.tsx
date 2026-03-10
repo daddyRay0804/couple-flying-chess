@@ -12,11 +12,15 @@ import { BottomNav } from './components/BottomNav';
 import { ThemeCreateModal } from './components/modals/ThemeCreateModal';
 import { ThemeEditorModal } from './components/modals/ThemeEditorModal';
 import { AiImportModal } from './components/modals/AiImportModal';
+import { TargetPlayerModal } from './components/modals/TargetPlayerModal';
 
 function App() {
   const {
     state,
     switchView,
+    setGameIntensity,
+    setPlayerCount,
+    setPlayerRole,
     selectTheme,
     createTheme,
     updateThemeMeta,
@@ -36,6 +40,7 @@ function App() {
   const [selectedPlayerId, setSelectedPlayerId] = useState<number>(0);
   const [taskData, setTaskData] = useState<TaskEventData | null>(null);
   const [winnerId, setWinnerId] = useState<number | null>(null);
+  const [pendingTargetTask, setPendingTargetTask] = useState<TaskEventData | null>(null);
   const [isCreateThemeModalOpen, setIsCreateThemeModalOpen] = useState(false);
   const [editingThemeId, setEditingThemeId] = useState<string | null>(null);
   const [aiImportThemeId, setAiImportThemeId] = useState<string | null>(null);
@@ -67,6 +72,11 @@ function App() {
 
   const handleTaskAccept = () => {
     if (!taskData) return;
+    if (taskData.targetRule === 'chosen-player') {
+      setPendingTargetTask(taskData);
+      setTaskData(null);
+      return;
+    }
     setTaskData(null);
     resolveTask(taskData, 'accept');
   };
@@ -75,6 +85,12 @@ function App() {
     if (!taskData) return;
     setTaskData(null);
     resolveTask(taskData, 'reject');
+  };
+
+  const handleTargetSelect = (playerId: number) => {
+    if (!pendingTargetTask) return;
+    resolveTask(pendingTargetTask, 'accept', playerId);
+    setPendingTargetTask(null);
   };
 
   const handleWin = (id: number) => {
@@ -93,33 +109,33 @@ function App() {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex justify-center bg-black">
+    <div className="h-screen w-screen overflow-hidden flex justify-center bg-[#fff7f8]">
       <div className="fixed inset-0 z-0">
-        <div className="w-full h-full bg-gradient-to-br from-gray-900 via-black to-gray-900 opacity-60" />
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+        <div className="w-full h-full bg-[radial-gradient(circle_at_top_left,_rgba(255,214,230,0.95),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(220,232,255,0.9),_transparent_30%),linear-gradient(180deg,_#fffafb_0%,_#fff4f7_58%,_#fffaf5_100%)]" />
+        <div className="absolute inset-0 bg-white/25 backdrop-blur-[3px]" />
       </div>
 
-      <div className="relative z-10 w-full max-w-[430px] h-full flex flex-col bg-black/20">
+      <div className="relative z-10 w-full max-w-[430px] h-full flex flex-col bg-white/10">
         <header className="pt-12 pb-2 px-6 shrink-0 flex justify-between items-start">
           <div>
-            <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1">
+            <div className="text-[11px] font-semibold text-rose-300 uppercase tracking-[0.25em] mb-1">
               Couple's Game
             </div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">情侣飞行棋</h1>
+            <h1 className="text-3xl font-bold text-rose-950 tracking-tight">情侣飞行棋</h1>
           </div>
           <div className="flex flex-col items-end gap-2 mt-1">
             <a
               href="https://github.com/woniu9524/couple-flying-chess"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-gray-400 hover:text-white transition-colors"
+              className="text-rose-300 hover:text-rose-500 transition-colors"
               title="GitHub Repository"
             >
               <Github size={24} />
             </a>
             <a
               href="mailto:ikun@gmx.cn"
-              className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+              className="text-xs text-rose-300/80 hover:text-rose-500 transition-colors"
             >
               问题反馈：ikun@gmx.cn
             </a>
@@ -137,8 +153,12 @@ function App() {
             <HomeView
               players={state.players}
               themes={state.themes}
+              gameIntensity={state.gameIntensity}
               onSelectTheme={handleSelectTheme}
               onStartGame={handleStartGame}
+              onSetPlayerCount={setPlayerCount}
+              onSetPlayerRole={setPlayerRole}
+              onSetGameIntensity={setGameIntensity}
             />
           </div>
 
@@ -182,6 +202,14 @@ function App() {
           resetGame();
           setWinnerId(null);
         }}
+      />
+
+      <TargetPlayerModal
+        isOpen={!!pendingTargetTask}
+        players={state.players}
+        initiatorPlayerId={pendingTargetTask?.initiatorPlayerId ?? -1}
+        onSelect={handleTargetSelect}
+        onClose={() => setPendingTargetTask(null)}
       />
 
       <ThemeCreateModal
