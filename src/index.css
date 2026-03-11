@@ -3,17 +3,23 @@
 @tailwind utilities;
 
 :root {
-  --ios-bg: #000000;
-  --ios-card: #1C1C1E;
-  --ios-card-border: rgba(255, 255, 255, 0.1);
-  --primary-blue: #0A84FF;
-  --primary-pink: #FF375F;
+  --ios-bg: #fff7f8;
+  --ios-card: rgba(255, 255, 255, 0.82);
+  --ios-card-solid: #fffdfd;
+  --ios-card-border: rgba(244, 114, 182, 0.12);
+  --primary-blue: #6d8ef7;
+  --primary-pink: #ec6f98;
+  --text-primary: #3b2c36;
+  --text-secondary: #7c6a73;
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
-  background-color: var(--ios-bg);
-  color: #FFFFFF;
+  background:
+    radial-gradient(circle at top left, rgba(255, 214, 230, 0.9), transparent 32%),
+    radial-gradient(circle at top right, rgba(220, 232, 255, 0.85), transparent 28%),
+    linear-gradient(180deg, #fff9fb 0%, #fff3f6 52%, #fef7f1 100%);
+  color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
   margin: 0;
@@ -21,15 +27,18 @@ body {
 }
 
 .ios-glass {
-  background: rgba(28, 28, 30, 0.75);
-  backdrop-filter: blur(25px) saturate(180%);
-  -webkit-backdrop-filter: blur(25px) saturate(180%);
-  border: 0.5px solid var(--ios-card-border);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid var(--ios-card-border);
+  box-shadow: 0 18px 40px rgba(236, 111, 152, 0.08);
 }
 
 .ios-card {
-  background: var(--ios-card);
-  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,247,250,0.92) 100%);
+  border: 1px solid rgba(244, 114, 182, 0.1);
+  border-radius: 24px;
+  box-shadow: 0 16px 36px rgba(236, 111, 152, 0.08);
 }
 
 .ios-btn {
@@ -206,7 +215,7 @@ body {
 
 .flip-card-back {
   transform: rotateY(180deg);
-  background-color: #2C2C2E;
+  background: linear-gradient(180deg, #fffdfd 0%, #fff4f7 100%);
   display: flex;
   flex-direction: column;
   align-items: center;

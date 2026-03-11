@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Github } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import { TaskEventData } from './types';
 import { HomeView } from './components/views/HomeView';
@@ -79,21 +78,17 @@ function App() {
             </div>
             <h1 className="text-3xl font-bold text-rose-950 tracking-tight">情侣飞行棋</h1>
           </div>
-          <div className="flex flex-col items-end gap-2 mt-1">
+          <div className="flex flex-col items-end gap-1 mt-1 text-right">
+            <div className="text-[11px] font-semibold text-rose-300 uppercase tracking-[0.2em]">
+              Telegram
+            </div>
             <a
-              href="https://github.com/woniu9524/couple-flying-chess"
+              href="https://t.me/atpaylove6699"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-rose-300 hover:text-rose-500 transition-colors"
-              title="GitHub Repository"
+              className="text-sm text-rose-500 hover:text-rose-700 transition-colors font-semibold"
             >
-              <Github size={24} />
-            </a>
-            <a
-              href="mailto:ikun@gmx.cn"
-              className="text-xs text-rose-300/80 hover:text-rose-500 transition-colors"
-            >
-              问题反馈：ikun@gmx.cn
+              @atpaylove6699
             </a>
           </div>
         </header>

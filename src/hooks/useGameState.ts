@@ -133,7 +133,13 @@ function normalizeGameState(saved: unknown): GameState | null {
     boardMap: Array.isArray(s.boardMap) ? s.boardMap : generateBoardMap(),
     pathCoords: Array.isArray(s.pathCoords) ? s.pathCoords : generateSpiralPath(),
     isRolling: !!s.isRolling,
-    gameIntensity: s.gameIntensity === 'warm' || s.gameIntensity === 'hot' || s.gameIntensity === 'extreme' ? s.gameIntensity : 'hot'
+    gameIntensity: s.gameIntensity === 'warm' || s.gameIntensity === 'hot' || s.gameIntensity === 'extreme' ? s.gameIntensity : 'hot',
+    roundThemeTasks: isRecord(s.roundThemeTasks)
+      ? {
+          surprise: Array.isArray(s.roundThemeTasks.surprise) ? s.roundThemeTasks.surprise.filter(x => typeof x === 'string') : [],
+          trap: Array.isArray(s.roundThemeTasks.trap) ? s.roundThemeTasks.trap.filter(x => typeof x === 'string') : []
+        }
+      : undefined
   };
 }
 
@@ -158,6 +164,20 @@ function pickRandomTargetByPreference(activePlayer: Player, others: Player[]): P
   const oppositeGender = others.filter(player => player.role !== activePlayer.role);
   const pool = oppositeGender.length > 0 ? oppositeGender : others;
   return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function shuffleArray<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function pickRoundTasks(tasks: string[], limit: number) {
+  if (tasks.length <= limit) return shuffleArray(tasks);
+  return shuffleArray(tasks).slice(0, limit);
 }
 
 function inferTaskMeta(taskText: string, gameIntensity: GameIntensity): {
@@ -250,7 +270,8 @@ export function useGameState() {
       boardMap: generateBoardMap(),
       pathCoords: generateSpiralPath(),
       isRolling: false,
-      gameIntensity: 'hot'
+      gameIntensity: 'hot',
+      roundThemeTasks: undefined
     };
   });
 
@@ -311,7 +332,11 @@ export function useGameState() {
       ...prev,
       view: 'game',
       turn: Math.floor(Math.random() * prev.players.length),
-      players: prev.players.map(p => ({ ...p, themeId: SURPRISE_THEME_ID, step: 0 }))
+      players: prev.players.map(p => ({ ...p, themeId: SURPRISE_THEME_ID, step: 0 })),
+      roundThemeTasks: {
+        surprise: pickRoundTasks(surpriseTheme.tasks, 16),
+        trap: pickRoundTasks(trapTheme.tasks, 16)
+      }
     }));
     return true;
   }, [state.themes]);
@@ -350,8 +375,8 @@ export function useGameState() {
     }
 
     if (collisionTarget) {
-      const theme = state.themes.find(t => t.id === SURPRISE_THEME_ID);
-      const task = theme?.tasks[Math.floor(Math.random() * theme.tasks.length)] || '';
+      const taskPool = state.roundThemeTasks?.surprise || state.themes.find(t => t.id === SURPRISE_THEME_ID)?.tasks || [];
+      const task = taskPool[Math.floor(Math.random() * taskPool.length)] || '';
 
       return buildTaskEvent({
         type: 'collision',
@@ -372,8 +397,8 @@ export function useGameState() {
     const tileType = state.boardMap[landingStep];
 
     if (tileType === 'lucky') {
-      const theme = state.themes.find(t => t.id === SURPRISE_THEME_ID);
-      const task = theme?.tasks[Math.floor(Math.random() * theme.tasks.length)] || '';
+      const taskPool = state.roundThemeTasks?.surprise || state.themes.find(t => t.id === SURPRISE_THEME_ID)?.tasks || [];
+      const task = taskPool[Math.floor(Math.random() * taskPool.length)] || '';
       const targetPlayer = otherPlayers.length > 0 ? pickRandomTargetByPreference(activePlayer, otherPlayers) : activePlayer;
 
       return buildTaskEvent({
@@ -393,8 +418,8 @@ export function useGameState() {
 
     if (tileType === 'trap') {
       const sourcePlayer = otherPlayers.length > 0 ? pickRandomTargetByPreference(activePlayer, otherPlayers) : activePlayer;
-      const theme = state.themes.find(t => t.id === TRAP_THEME_ID);
-      const task = theme?.tasks[Math.floor(Math.random() * theme.tasks.length)] || '';
+      const taskPool = state.roundThemeTasks?.trap || state.themes.find(t => t.id === TRAP_THEME_ID)?.tasks || [];
+      const task = taskPool[Math.floor(Math.random() * taskPool.length)] || '';
 
       return buildTaskEvent({
         type: 'trap',
@@ -412,7 +437,7 @@ export function useGameState() {
     }
 
     return null;
-  }, [state.players, state.turn, state.themes, state.boardMap, state.gameIntensity]);
+  }, [state.players, state.turn, state.themes, state.boardMap, state.gameIntensity, state.roundThemeTasks]);
 
   const resolveTask = useCallback((task: TaskEventData, outcome: 'accept' | 'reject', chosenTargetId?: number) => {
     setState(prev => {
@@ -450,7 +475,8 @@ export function useGameState() {
       boardMap: generateBoardMap(),
       pathCoords: generateSpiralPath(),
       isRolling: false,
-      gameIntensity: prev.gameIntensity
+      gameIntensity: prev.gameIntensity,
+      roundThemeTasks: undefined
     }));
   }, []);
 

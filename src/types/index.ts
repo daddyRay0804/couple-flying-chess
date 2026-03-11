@@ -40,6 +40,10 @@ export interface GameState {
   pathCoords: PathCoord[];
   isRolling: boolean;
   gameIntensity: GameIntensity;
+  roundThemeTasks?: {
+    surprise: string[];
+    trap: string[];
+  };
 }
 
 export interface TaskEventData {
