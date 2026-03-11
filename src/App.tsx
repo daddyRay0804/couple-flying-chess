@@ -7,7 +7,6 @@ import { GameView } from './components/views/GameView';
 import { TaskCardModal } from './components/modals/TaskCardModal';
 import { WinModal } from './components/modals/WinModal';
 import { BottomNav } from './components/BottomNav';
-import { TargetPlayerModal } from './components/modals/TargetPlayerModal';
 
 function App() {
   const {
@@ -26,7 +25,6 @@ function App() {
 
   const [taskData, setTaskData] = useState<TaskEventData | null>(null);
   const [winnerId, setWinnerId] = useState<number | null>(null);
-  const [pendingTargetTask, setPendingTargetTask] = useState<TaskEventData | null>(null);
 
   const handleStartGame = () => {
     const success = startGame();
@@ -41,11 +39,6 @@ function App() {
 
   const handleTaskAccept = () => {
     if (!taskData) return;
-    if (taskData.targetRule === 'chosen-player') {
-      setPendingTargetTask(taskData);
-      setTaskData(null);
-      return;
-    }
     setTaskData(null);
     resolveTask(taskData, 'accept');
   };
@@ -54,12 +47,6 @@ function App() {
     if (!taskData) return;
     setTaskData(null);
     resolveTask(taskData, 'reject');
-  };
-
-  const handleTargetSelect = (playerId: number) => {
-    if (!pendingTargetTask) return;
-    resolveTask(pendingTargetTask, 'accept', playerId);
-    setPendingTargetTask(null);
   };
 
   const handleWin = (id: number) => {
@@ -146,14 +133,6 @@ function App() {
           resetGame();
           setWinnerId(null);
         }}
-      />
-
-      <TargetPlayerModal
-        isOpen={!!pendingTargetTask}
-        players={state.players}
-        initiatorPlayerId={pendingTargetTask?.initiatorPlayerId ?? -1}
-        onSelect={handleTargetSelect}
-        onClose={() => setPendingTargetTask(null)}
       />
 
       {state.view === 'game' && (

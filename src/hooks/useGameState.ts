@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { GameIntensity, GameState, Player, TargetRule, TaskEventData, TaskIntensity, TaskMode, Theme } from '../types';
 import { loadFromStorage, saveToStorage } from '../utils/localStorage';
 import { generateSpiralPath, generateBoardMap, calculateNewPosition } from '../utils/gameLogic';
-import { DEFAULT_THEMES } from '../data/defaultThemes';
+import { getTaskLibrary } from '../data/taskLibrary';
 
 const STORAGE_KEY = 'couples-ludo-game-state';
 const PLAYER_COLORS = ['#6D8EF7', '#EC6F98', '#56C1A7', '#F3A65A'];
@@ -74,7 +74,7 @@ function normalizePlayers(input: unknown): Player[] {
 
 function normalizeThemes(input: unknown): Theme[] {
   const incoming = Array.isArray(input) ? input : [];
-  const source = incoming.length > 0 ? incoming : DEFAULT_THEMES;
+  const source = [...getTaskLibrary(), ...incoming];
 
   return source
     .map(t => {
@@ -100,7 +100,11 @@ function normalizeThemes(input: unknown): Theme[] {
       } satisfies Theme;
     })
     .reduce<Theme[]>((acc, theme) => {
-      if (acc.some(t => t.id === theme.id)) return acc;
+      const existingIndex = acc.findIndex(t => t.id === theme.id);
+      if (existingIndex >= 0) {
+        acc[existingIndex] = theme;
+        return acc;
+      }
       acc.push(theme);
       return acc;
     }, []);
@@ -148,6 +152,12 @@ function createThemeId(existingIds: Set<string>) {
 
 function getNextTurnIndex(players: Player[], currentTurn: number) {
   return (currentTurn + 1) % players.length;
+}
+
+function pickRandomTargetByPreference(activePlayer: Player, others: Player[]): Player {
+  const oppositeGender = others.filter(player => player.role !== activePlayer.role);
+  const pool = oppositeGender.length > 0 ? oppositeGender : others;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function inferTaskMeta(taskText: string, gameIntensity: GameIntensity): {
@@ -236,7 +246,7 @@ export function useGameState() {
       view: 'home',
       turn: 0,
       players: createDefaultPlayers(2),
-      themes: DEFAULT_THEMES,
+      themes: getTaskLibrary(),
       boardMap: generateBoardMap(),
       pathCoords: generateSpiralPath(),
       isRolling: false,
@@ -364,13 +374,14 @@ export function useGameState() {
     if (tileType === 'lucky') {
       const theme = state.themes.find(t => t.id === SURPRISE_THEME_ID);
       const task = theme?.tasks[Math.floor(Math.random() * theme.tasks.length)] || '';
+      const targetPlayer = otherPlayers.length > 0 ? pickRandomTargetByPreference(activePlayer, otherPlayers) : activePlayer;
 
       return buildTaskEvent({
         type: 'lucky',
         initiator: activePlayer,
-        executor: activePlayer,
+        executor: targetPlayer,
         title: '惊喜时刻',
-        subtitle: `${activePlayer.name} 获得主动权，可以指定对象发起互动`,
+        subtitle: `${activePlayer.name} 获得主动权，系统已随机选中 ${targetPlayer.name}`,
         icon: 'favorite',
         color: 'text-[#FF375F]',
         task,
@@ -381,7 +392,7 @@ export function useGameState() {
     }
 
     if (tileType === 'trap') {
-      const sourcePlayer = otherPlayers[0] || activePlayer;
+      const sourcePlayer = otherPlayers.length > 0 ? pickRandomTargetByPreference(activePlayer, otherPlayers) : activePlayer;
       const theme = state.themes.find(t => t.id === TRAP_THEME_ID);
       const task = theme?.tasks[Math.floor(Math.random() * theme.tasks.length)] || '';
 
@@ -390,7 +401,7 @@ export function useGameState() {
         initiator: sourcePlayer,
         executor: activePlayer,
         title: '意外陷阱',
-        subtitle: `${activePlayer.name} 进入被动回合，需要接受更刺激的挑战`,
+        subtitle: `${activePlayer.name} 进入被动回合，系统随机由 ${sourcePlayer.name} 发起惩罚`,
         icon: 'lock',
         color: 'text-[#BF5AF2]',
         task,
